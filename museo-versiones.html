@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>El Museo de las Versiones de Nosotros</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<style>
+:root {
+  --bg:      #0B0B0D;
+  --surf:    #141417;
+  --surf2:   #1B1B1F;
+  --border:  rgba(255,255,255,.08);
+  --bord2:   rgba(255,255,255,.13);
+  --text:    #EFEFEF;
+  --muted:   #888;
+  --hint:    #555;
+  --acc:     #FF5800;
+  --acc-dim: rgba(255,88,0,.12);
+  --acc-mid: rgba(255,88,0,.22);
+  --r:       9px;
+  --rl:      13px;
+  --fs: 'DM Serif Display', Georgia, serif;
+  --fb: 'DM Sans', system-ui, sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--fb);font-size:15px;line-height:1.6}
+body{display:flex;flex-direction:column}
+h1,h2,h3{font-family:var(--fs);font-weight:400;line-height:1.15}
+a{color:var(--acc)}
+input,textarea,select{background:var(--surf2);border:1px solid var(--bord2);color:var(--text);border-radius:var(--r);padding:10px 14px;font-size:14px;width:100%;outline:none;transition:border .18s;font-family:var(--fb)}
+input:focus,textarea:focus{border-color:var(--acc)}
+textarea{resize:vertical;line-height:1.55}
+button{cursor:pointer;border:none;border-radius:var(--r);font-size:13px;font-weight:700;padding:9px 18px;transition:all .15s;font-family:var(--fb);letter-spacing:.01em}
+.bp{background:var(--acc);color:#fff}.bp:hover{background:#E54E00}.bp:disabled{opacity:.4;cursor:default}
+.bg{background:transparent;color:var(--acc);border:1px solid rgba(255,88,0,.32)}.bg:hover{background:var(--acc-dim)}
+.bm{background:transparent;color:var(--muted);border:1px solid var(--bord2)}.bm:hover{background:rgba(255,255,255,.04)}
+.card{background:var(--surf);border:1px solid var(--border);border-radius:var(--r);padding:16px}
+.tag{display:inline-block;font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;padding:3px 10px;border-radius:4px;background:var(--acc-dim);color:var(--acc)}
+.chip{display:inline-block;background:var(--surf2);border:1px solid var(--border);color:var(--muted);border-radius:20px;padding:5px 12px;font-size:12px;cursor:pointer;transition:all .15s;margin:3px}
+.chip:hover{border-color:var(--acc);color:var(--acc)}
+.av{width:30px;height:30px;border-radius:50%;background:var(--acc-dim);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:var(--acc);flex-shrink:0;border:1px solid rgba(255,88,0,.2)}
+@keyframes fi{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.fi{animation:fi .3s ease both}
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:3px}
+.screen{display:none}.screen.active{display:flex}
+#setup{flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:2rem;text-align:center}
+#onb{flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:2rem;text-align:center}
+#app{flex-direction:column;height:100vh}
+#hdr{background:#0D0D10;border-bottom:1px solid var(--border);padding:12px 24px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;flex-shrink:0;position:sticky;top:0;z-index:10}
+#body{display:flex;flex:1;overflow:hidden;min-height:0}
+#pcont{flex:1;padding:28px 32px;overflow-y:auto}
+#sbar{width:215px;background:#0D0D10;border-left:1px solid var(--border);padding:18px;overflow-y:auto;flex-shrink:0}
+@media(max-width:680px){#sbar{display:none}#pcont{padding:18px}}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════ SETUP ═══════════════════════════════ -->
+<div id="setup" class="screen active">
+  <div style="max-width:480px;width:100%;text-align:left">
+    <div style="text-align:center;margin-bottom:28px">
+      <div style="width:62px;height:62px;background:var(--acc-dim);border-radius:14px;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;border:1px solid rgba(255,88,0,.2)">
+        <svg width="28" height="28" fill="none" stroke="#FF5800" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+      </div>
+      <p style="font-size:10px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--acc);margin-bottom:10px">Configuración inicial · solo una vez</p>
+      <h1 style="font-size:clamp(24px,5vw,34px);margin-bottom:10px">El Museo de las<br>Versiones de Nosotros</h1>
+      <p style="color:var(--muted);font-size:14px;line-height:1.7;max-width:400px;margin:0 auto">Para que tu equipo colabore en tiempo real necesitas conectar una base de datos gratuita de Firebase.</p>
+    </div>
+
+    <div class="card" style="margin-bottom:20px">
+      <p style="font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--acc);margin-bottom:14px">Cómo configurar Firebase (5 min)</p>
+      <ol style="font-size:13px;color:var(--muted);line-height:2.1;padding-left:18px">
+        <li>Ve a <a href="https://console.firebase.google.com" target="_blank">console.firebase.google.com</a> e inicia sesión con Google</li>
+        <li>Crea un proyecto nuevo → dale un nombre → desactiva Analytics si quieres</li>
+        <li>En el menú lateral → <strong style="color:var(--text)">Realtime Database</strong> → "Crear base de datos"</li>
+        <li>Elige la región más cercana → modo <strong style="color:var(--text)">"Iniciar en modo de prueba"</strong></li>
+        <li>En la pestaña <strong style="color:var(--text)">Reglas</strong>, pega esto y publica:<br>
+          <code style="background:var(--surf2);padding:3px 8px;border-radius:5px;font-size:11px;display:inline-block;margin-top:4px">{"rules":{".read":true,".write":true}}</code>
+        </li>
+        <li>Ve a ⚙️ <strong style="color:var(--text)">Configuración del proyecto</strong> → "Tu app web" (icono &lt;/&gt;) → registra la app → copia el objeto <code style="background:var(--surf2);padding:2px 6px;border-radius:4px;font-size:11px">firebaseConfig</code></li>
+      </ol>
+    </div>
+
+    <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:7px;font-weight:700;letter-spacing:.04em">PEGA TU FIREBASE CONFIG AQUÍ</label>
+    <textarea id="fb-cfg" rows="8" style="font-family:monospace;font-size:12px;margin-bottom:12px" placeholder='{
+  "apiKey": "AIzaSy...",
+  "authDomain": "mi-proyecto.firebaseapp.com",
+  "databaseURL": "https://mi-proyecto-default-rtdb.firebaseio.com",
+  "projectId": "mi-proyecto",
+  "storageBucket": "mi-proyecto.appspot.com",
+  "messagingSenderId": "...",
+  "appId": "..."
+}'></textarea>
+    <p id="setup-err" style="color:#E24B4A;font-size:12px;margin-bottom:10px;display:none"></p>
+    <button onclick="connectFirebase()" class="bp" style="width:100%;padding:14px;font-size:15px;border-radius:10px">Conectar y comenzar →</button>
+    <p style="font-size:11px;color:var(--hint);text-align:center;margin-top:12px">Solo el facilitador/a necesita hacer esto. Los demás reciben el archivo ya configurado o el link de hosting.</p>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ ONBOARDING ════════════════════════════ -->
+<div id="onb" class="screen">
+  <div style="max-width:360px;width:100%;text-align:left">
+    <div style="text-align:center;margin-bottom:28px">
+      <div style="width:62px;height:62px;background:var(--acc-dim);border-radius:14px;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;border:1px solid rgba(255,88,0,.2)">
+        <svg width="30" height="30" fill="none" stroke="#FF5800" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+      </div>
+      <p style="font-size:10px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--acc);margin-bottom:10px">Dinámica de equipo · 30 min</p>
+      <h1 style="font-size:clamp(24px,6vw,38px);margin-bottom:10px">El Museo de las<br>Versiones de Nosotros</h1>
+      <p style="color:var(--muted);font-size:14px;line-height:1.65">Una dinámica remota para conectar desde lo humano.</p>
+    </div>
+
+    <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:7px;font-weight:700;letter-spacing:.04em">TU NOMBRE</label>
+    <input id="onb-name" type="text" placeholder="Escribe tu nombre…" style="margin-bottom:18px" maxlength="40" onkeydown="if(event.key==='Enter')enterSession()">
+
+    <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:10px;font-weight:700;letter-spacing:.04em">TU ROL EN ESTA SESIÓN</label>
+    <div style="display:flex;gap:10px;margin-bottom:24px">
+      <button id="rbp" onclick="selRole('participante')" class="bg" style="flex:1;padding:14px 10px;border-radius:10px;flex-direction:column;align-items:center;display:flex;gap:6px;font-size:14px">
+        <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        Participante
+      </button>
+      <button id="rbf" onclick="selRole('facilitador')" class="bg" style="flex:1;padding:14px 10px;border-radius:10px;flex-direction:column;align-items:center;display:flex;gap:6px;font-size:14px">
+        <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+        Facilitador/a
+      </button>
+    </div>
+
+    <p id="onb-err" style="color:#E24B4A;font-size:12px;margin-bottom:10px;display:none">Por favor escribe tu nombre.</p>
+    <button onclick="enterSession()" class="bp" style="width:100%;padding:15px;font-size:15px;border-radius:10px">Entrar al museo →</button>
+    <button onclick="resetCfg()" style="background:transparent;border:none;color:var(--hint);font-size:12px;margin-top:14px;width:100%;cursor:pointer;padding:6px">Cambiar configuración de Firebase</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ MAIN APP ══════════════════════════════ -->
+<div id="app" class="screen">
+  <div id="hdr">
+    <div style="display:flex;align-items:center;gap:8px">
+      <svg width="17" height="17" fill="none" stroke="#FF5800" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+      <span style="font-size:12px;font-weight:800;color:var(--acc);letter-spacing:.08em">MUSEO</span>
+    </div>
+    <div id="pdots" style="display:flex;gap:5px;align-items:center"></div>
+    <div id="pbadge" style="background:var(--acc-dim);color:var(--acc);border:1px solid rgba(255,88,0,.2);border-radius:20px;padding:3px 12px;font-size:12px;font-weight:700"></div>
+    <div style="flex:1"></div>
+    <div id="timer" style="font-family:monospace;font-size:15px;font-weight:800;color:var(--text);min-width:44px;text-align:center"></div>
+    <div id="ubadge" style="background:var(--surf2);border-radius:20px;padding:4px 12px;font-size:12px;color:#ccc;border:1px solid var(--bord2)"></div>
+    <button id="bnext" onclick="nextPhase()" class="bp" style="display:none;font-size:12px;padding:7px 14px">Siguiente fase →</button>
+    <button id="breset" onclick="resetSession()" class="bm" style="display:none;font-size:11px;padding:7px 12px">Reset</button>
+  </div>
+  <div id="body">
+    <div id="pcont"></div>
+    <div id="sbar">
+      <p style="font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--hint);margin-bottom:10px">Conectados</p>
+      <div id="s-users" style="margin-bottom:18px"></div>
+      <p style="font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--hint);margin-bottom:8px">Actividad</p>
+      <div id="s-feed"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const PH=[
+  {n:'Apertura',   e:'🏛️', d:3},
+  {n:'Icebreaker', e:'❄️', d:5},
+  {n:'Creación',   e:'🎨', d:10},
+  {n:'Galería',    e:'🖼️', d:7},
+  {n:'Votación',   e:'🏆', d:3},
+  {n:'Cierre',     e:'✨', d:2}
+];
+const VE=[
+  {e:'😂',l:'Más divertida'},
+  {e:'🫶',l:'Más humana'},
+  {e:'🧠',l:'Me hizo pensar'},
+  {e:'🎭',l:'Más dramática'},
+  {e:'🌱',l:'Más aprendizaje'}
+];
+const ICE=[
+  '…ir al súper con hambre.',
+  '…mandar mensajes importantes con sueño.',
+  '…creer que la ansiedad es intuición.',
+  '…decir "yo puedo con todo".',
+  '…cortarse el cabello después de una crisis.',
+  '…tomar decisiones después de las 11 pm.',
+  '…confundir intensidad con amor.',
+  '…pensar que descansar es perder el tiempo.',
+  '…decir "solo voy a ver un capítulo".',
+  '…comprar algo solo porque estaba en oferta.'
+];
+
+let usr={name:'',role:'participante'}, selR='participante';
+let curPhase=0, timerIv=null, db=null;
+let _edit=false;
+
+// ── Firebase setup ─────────────────────────────────────────────────────────
+async function connectFirebase(){
+  const raw=document.getElementById('fb-cfg').value.trim();
+  const err=document.getElementById('setup-err');
+  err.style.display='none';
+  let cfg;
+  try{
+    let s=raw.replace(/\s*\/\/.*$/gm,'');
+    // Fix unquoted keys
+    s=s.replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g,'$1"$2":');
+    // Extract just the object
+    const m=s.match(/\{[\s\S]*\}/);
+    if(!m)throw new Error('no object found');
+    cfg=JSON.parse(m[0]);
+  }catch(e){
+    err.textContent='Formato inválido. Pega el objeto completo con las llaves { }.';
+    err.style.display=''; return;
+  }
+  if(!cfg.databaseURL){
+    err.textContent='Falta databaseURL. Asegúrate de haber activado Realtime Database.';
+    err.style.display=''; return;
+  }
+  try{
+    if(firebase.apps.length>0) await Promise.all(firebase.apps.map(a=>a.delete()));
+    firebase.initializeApp(cfg);
+    db=firebase.database();
+    await db.ref('.info/connected').once('value');
+    localStorage.setItem('museo_cfg',JSON.stringify(cfg));
+    showScreen('onb');
+  }catch(e){
+    err.textContent='Error: '+e.message+'. Verifica la config y las reglas de seguridad.';
+    err.style.display='';
+  }
+}
+
+function resetCfg(){localStorage.removeItem('museo_cfg');showScreen('setup');}
+
+// ── Screens ────────────────────────────────────────────────────────────────
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>{s.classList.remove('active');s.style.display='none';});
+  const el=document.getElementById(id);
+  el.classList.add('active');
+  el.style.display='flex';
+}
+
+// ── Role selection ─────────────────────────────────────────────────────────
+function selRole(r){
+  selR=r;
+  ['p','f'].forEach(x=>{
+    const b=document.getElementById('rb'+x), a=(x==='p'&&r==='participante')||(x==='f'&&r==='facilitador');
+    b.style.background=a?'var(--acc-dim)':'transparent';
+    b.style.borderColor=a?'var(--acc)':'rgba(255,88,0,.32)';
+  });
+}
+
+// ── Session entry ──────────────────────────────────────────────────────────
+async function enterSession(){
+  const n=document.getElementById('onb-name').value.trim();
+  if(!n){document.getElementById('onb-err').style.display='';return;}
+  document.getElementById('onb-err').style.display='none';
+  usr={name:n,role:selR};
+  const uref=db.ref('museo/users/'+ekey(n));
+  await uref.set({name:n,role:selR,ts:Date.now()});
+  uref.onDisconnect().remove();
+  document.getElementById('ubadge').textContent=(selR==='facilitador'?'★ ':'')+n;
+  if(selR==='facilitador'){
+    document.getElementById('bnext').style.display='';
+    document.getElementById('breset').style.display='';
+  }
+  startListeners();
+  showScreen('app');
+  setInterval(()=>db.ref('museo/users/'+ekey(n)).update({ts:Date.now()}),30000);
+}
+
+function ekey(s){return s.replace(/[.#$\[\]/]/g,'_');}
+function esc(s){if(!s)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+function ago(ts){const s=Math.floor((Date.now()-ts)/1000);if(s<60)return'hace un momento';if(s<3600)return`hace ${Math.floor(s/60)} min`;return`hace ${Math.floor(s/3600)}h`;}
+
+// ── Listeners ──────────────────────────────────────────────────────────────
+function startListeners(){
+  db.ref('museo/session').on('value',snap=>{
+    const s=snap.val()||{phase:0,phaseStartTime:Date.now()};
+    if(s.phase!==curPhase){curPhase=s.phase;renderPhase(s.phase,s.phaseStartTime);}
+    else startTimer(s.phaseStartTime,PH[s.phase].d);
+  });
+  db.ref('museo/users').on('value',snap=>{
+    const now=Date.now(), users=[];
+    snap.forEach(c=>{const u=c.val();if(now-u.ts<300000)users.push(u);});
+    renderUsers(users);
+  });
+  db.ref('museo/ice').on('value',snap=>{
+    const items=snap.val()?Object.values(snap.val()):[];
+    if(curPhase===1)updateIceList(items);
+    sidebarFeed();
+  });
+  db.ref('museo/pieces').on('value',snap=>{
+    if(curPhase===3)renderGallery();
+    if(curPhase===4)renderVoting();
+    sidebarFeed();
+  });
+  db.ref('museo/votes').on('value',snap=>{
+    if(curPhase===4)renderVoting();
+  });
+  db.ref('museo/refs').on('value',snap=>{
+    if(curPhase===5)renderRefs();
+    sidebarFeed();
+  });
+}
+
+// ── Phase rendering ────────────────────────────────────────────────────────
+function renderPhase(idx,st){
+  curPhase=idx;
+  const p=PH[idx];
+  document.getElementById('pdots').innerHTML=PH.map((ph,i)=>
+    `<div title="${ph.n}" style="width:8px;height:8px;border-radius:50%;background:${i<=idx?'#FF5800':'rgba(255,255,255,.1)'};opacity:${i===idx?1:i<idx?.5:.2};transition:all .3s"></div>`
+  ).join('');
+  document.getElementById('pbadge').textContent=p.e+' '+p.n;
+  startTimer(st,p.d);
+  const el=document.getElementById('pcont');
+  el.scrollTop=0;
+  switch(idx){
+    case 0:rApertura(el);break;
+    case 1:rIce(el);break;
+    case 2:rCreacion(el);break;
+    case 3:rGaleria(el);break;
+    case 4:rVotacion(el);break;
+    case 5:rCierre(el);break;
+  }
+}
+
+function startTimer(st,dur){
+  if(timerIv)clearInterval(timerIv);
+  const end=st+dur*60000;
+  const tick=()=>{
+    const rem=Math.max(0,end-Date.now());
+    const el=document.getElementById('timer');
+    if(!el)return;
+    el.textContent=`${String(Math.floor(rem/60000)).padStart(2,'0')}:${String(Math.floor((rem%60000)/1000)).padStart(2,'0')}`;
+    el.style.color=rem<60000?'#FF5800':'var(--text)';
+  };
+  tick();
+  timerIv=setInterval(tick,1000);
+}
+
+// ── Phase 0: Apertura ──────────────────────────────────────────────────────
+function rApertura(el){
+  el.innerHTML=`<div class="fi" style="max-width:600px">
+    <span class="tag" style="display:inline-block;margin-bottom:16px">Fase 1 de 6</span>
+    <h2 style="font-size:clamp(24px,4vw,36px);margin-bottom:10px">Bienvenidos al<br>Museo 🏛️</h2>
+    <p style="color:var(--muted);font-size:14px;line-height:1.75;max-width:520px;margin-bottom:24px">Hoy no vamos a hablar de trabajo ni pendientes. Vamos a hablar de vida: de esas versiones nuestras que alguna vez pensaron que tenían todo resuelto, que exageraron, que aprendieron a golpes.</p>
+    <div class="card" style="border-left:3px solid var(--acc);margin-bottom:22px">
+      <p style="font-size:11px;font-weight:800;color:var(--acc);margin-bottom:6px;letter-spacing:.06em">REGLA DE ORO</p>
+      <p style="font-size:14px;color:#ccc;line-height:1.65">Aquí no venimos a burlarnos de nadie. Venimos a mirar nuestras propias historias con <strong style="color:var(--text)">ternura, humor y perspectiva</strong>.</p>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:22px">
+      ${PH.map(p=>`<div class="card" style="text-align:center;padding:14px">
+        <div style="font-size:22px;margin-bottom:6px">${p.e}</div>
+        <div style="font-size:11px;font-weight:700;color:var(--acc)">${p.n}</div>
+        <div style="font-size:11px;color:var(--hint);margin-top:2px">${p.d} min</div>
+      </div>`).join('')}
+    </div>
+    <p style="font-size:12px;color:var(--hint);text-align:center">${usr.role==='facilitador'?'<strong style="color:var(--muted)">Eres el facilitador/a.</strong> Avanza las fases con "Siguiente fase →" cuando estés listo/a.':'El facilitador controla el avance. Prepárate para compartir algo ligero y humano.'}</p>
+  </div>`;
+}
+
+// ── Phase 1: Icebreaker ────────────────────────────────────────────────────
+function rIce(el){
+  el.innerHTML=`<div class="fi" style="max-width:600px">
+    <span class="tag" style="display:inline-block;margin-bottom:16px">Fase 2 de 6</span>
+    <h2 style="font-size:26px;margin-bottom:8px">Icebreaker ❄️</h2>
+    <p style="color:var(--muted);font-size:14px;margin-bottom:20px">Completa: <em style="color:var(--text)">"Una vez en la vida aprendí que nunca hay que…"</em></p>
+    <div style="display:flex;gap:8px;margin-bottom:14px">
+      <input id="ice-in" type="text" placeholder="…completar la frase" style="flex:1">
+      <button onclick="subIce()" class="bp" style="white-space:nowrap">Enviar</button>
+    </div>
+    <p style="font-size:11px;color:var(--hint);margin-bottom:8px">Inspiración (clic para usar):</p>
+    <div style="margin-bottom:24px">${ICE.map(c=>`<span class="chip" onclick="var i=document.getElementById('ice-in');if(!i.disabled)i.value='${c.replace(/'/g,"\\'")}'">${c}</span>`).join('')}</div>
+    <div id="ice-list"><p style="font-size:13px;color:var(--hint)">Esperando respuestas…</p></div>
+  </div>`;
+  db.ref('museo/ice').once('value').then(s=>{
+    const items=s.val()?Object.values(s.val()):[];
+    updateIceList(items);
+  });
+}
+
+function updateIceList(items){
+  const el=document.getElementById('ice-list');
+  if(!el)return;
+  const mine=items.find(i=>i.name===usr.name);
+  const inp=document.getElementById('ice-in');
+  if(mine&&inp){inp.disabled=true;inp.value=mine.text;}
+  if(!items.length){el.innerHTML='<p style="font-size:13px;color:var(--hint)">Esperando respuestas…</p>';return;}
+  el.innerHTML=items.sort((a,b)=>a.ts-b.ts).map(i=>`
+    <div class="card" style="margin-bottom:8px;display:flex;align-items:center;gap:10px;padding:12px 14px">
+      <div class="av">${i.name.charAt(0).toUpperCase()}</div>
+      <div>
+        <p style="font-size:10px;color:var(--acc);font-weight:800;margin-bottom:2px">${esc(i.name)}</p>
+        <p style="font-size:13px;color:#ccc">Nunca hay que ${esc(i.text)}</p>
+      </div>
+    </div>`).join('');
+}
+
+async function subIce(){
+  const t=document.getElementById('ice-in')?.value.trim();
+  if(!t)return;
+  await db.ref('museo/ice/'+ekey(usr.name)).set({name:usr.name,text:t,ts:Date.now()});
+  const inp=document.getElementById('ice-in');
+  if(inp)inp.disabled=true;
+}
+
+// ── Phase 2: Creación ──────────────────────────────────────────────────────
+function rCreacion(el){
+  el.innerHTML=`<div class="fi" style="max-width:600px">
+    <span class="tag" style="display:inline-block;margin-bottom:16px">Fase 3 de 6</span>
+    <h2 style="font-size:26px;margin-bottom:8px">Crea tu pieza 🎨</h2>
+    <p style="color:var(--muted);font-size:13px;margin-bottom:22px">Inspírate en una etapa, error, hábito o momento que hoy puedes mirar con humor y aprendizaje.</p>
+    <div id="pview"><p style="color:var(--hint);font-size:13px">Cargando…</p></div>
+  </div>`;
+  db.ref('museo/pieces/'+ekey(usr.name)).once('value').then(s=>renderPiece(s.val()));
+}
+
+function renderPiece(mine){
+  const el=document.getElementById('pview');
+  if(!el)return;
+  if(mine&&!_edit){
+    el.innerHTML=`<div class="card" style="border-top:2px solid var(--acc);margin-bottom:14px">
+      <p style="font-size:10px;color:var(--acc);font-weight:800;letter-spacing:.08em;margin-bottom:6px">NOMBRE DE LA OBRA</p>
+      <h3 style="font-size:19px;margin-bottom:14px;line-height:1.35">"${esc(mine.title)}"</h3>
+      ${mine.desc?`<p style="font-size:11px;color:var(--hint);margin-bottom:3px">Descripción</p><p style="font-size:13px;color:#ccc;margin-bottom:12px;line-height:1.6">${esc(mine.desc)}</p>`:''}
+      ${mine.version?`<p style="font-size:11px;color:var(--hint);margin-bottom:3px">La versión de mí</p><p style="font-size:13px;color:#ccc;margin-bottom:12px;line-height:1.6">${esc(mine.version)}</p>`:''}
+      ${mine.lesson?`<p style="font-size:11px;color:var(--hint);margin-bottom:3px">Lo que me enseñó</p><p style="font-size:13px;color:#ccc;margin-bottom:12px;line-height:1.6">${esc(mine.lesson)}</p>`:''}
+      ${mine.phrase?`<div style="background:var(--acc-dim);border-radius:7px;padding:12px"><p style="font-size:11px;color:var(--acc);margin-bottom:4px">Frase para mi yo del pasado</p><p style="font-style:italic;color:var(--text);font-size:14px">"${esc(mine.phrase)}"</p></div>`:''}
+    </div>
+    <button onclick="_edit=true;db.ref('museo/pieces/'+ekey(usr.name)).once('value').then(s=>renderPiece(s.val()))" class="bg">Editar mi pieza</button>`;
+  }else{
+    el.innerHTML=`<div style="display:grid;gap:14px">
+      <div><label style="font-size:11px;color:var(--muted);display:block;margin-bottom:6px;font-weight:700;letter-spacing:.04em">NOMBRE DE LA OBRA — título dramático, absurdo o poético</label>
+      <input id="pc-t" type="text" placeholder="Ej: Yo puedo con todo" value="${mine?esc(mine.title):''}"></div>
+      <div><label style="font-size:11px;color:var(--muted);display:block;margin-bottom:6px;font-weight:700;letter-spacing:.04em">DESCRIPCIÓN — ¿qué representa?</label>
+      <textarea id="pc-d" rows="2" placeholder="Representa a una persona que…">${mine?esc(mine.desc):''}</textarea></div>
+      <div><label style="font-size:11px;color:var(--muted);display:block;margin-bottom:6px;font-weight:700;letter-spacing:.04em">LA VERSIÓN DE MÍ</label>
+      <input id="pc-v" type="text" placeholder="La versión que pensaba que…" value="${mine?esc(mine.version):''}"></div>
+      <div><label style="font-size:11px;color:var(--muted);display:block;margin-bottom:6px;font-weight:700;letter-spacing:.04em">LO QUE ME ENSEÑÓ</label>
+      <input id="pc-l" type="text" placeholder="Que…" value="${mine?esc(mine.lesson):''}"></div>
+      <div><label style="font-size:11px;color:var(--muted);display:block;margin-bottom:6px;font-weight:700;letter-spacing:.04em">FRASE PARA MI YO DEL PASADO</label>
+      <input id="pc-p" type="text" placeholder="No tienes que…" value="${mine?esc(mine.phrase):''}"></div>
+      <button onclick="subPiece()" class="bp" style="padding:13px;font-size:14px">${mine?'Guardar cambios →':'Agregar al museo →'}</button>
+    </div>`;
+  }
+}
+
+async function subPiece(){
+  const title=document.getElementById('pc-t')?.value.trim();
+  const desc=document.getElementById('pc-d')?.value.trim();
+  if(!title||!desc)return;
+  await db.ref('museo/pieces/'+ekey(usr.name)).set({
+    name:usr.name,title,desc,
+    version:document.getElementById('pc-v')?.value.trim()||'',
+    lesson:document.getElementById('pc-l')?.value.trim()||'',
+    phrase:document.getElementById('pc-p')?.value.trim()||'',
+    ts:Date.now()
+  });
+  _edit=false;
+  db.ref('museo/pieces/'+ekey(usr.name)).once('value').then(s=>renderPiece(s.val()));
+}
+
+// ── Phase 3: Galería ───────────────────────────────────────────────────────
+function rGaleria(el){
+  el.innerHTML=`<div class="fi" style="max-width:720px">
+    <span class="tag" style="display:inline-block;margin-bottom:16px">Fase 4 de 6</span>
+    <h2 style="font-size:26px;margin-bottom:6px">Galería del museo 🖼️</h2>
+    <p style="color:var(--muted);font-size:13px;margin-bottom:22px">Presenten cada pieza como curadores. Máximo 1 minuto por persona.</p>
+    <div id="gallery"></div>
+  </div>`;
+  renderGallery();
+}
+
+async function renderGallery(){
+  const el=document.getElementById('gallery');
+  if(!el)return;
+  const s=await db.ref('museo/pieces').once('value');
+  const pcs=s.val()?Object.values(s.val()):[];
+  if(!pcs.length){el.innerHTML='<p style="color:var(--hint)">Todavía no hay piezas en el museo…</p>';return;}
+  el.innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px">
+    ${pcs.map(p=>`<div class="card" style="border-top:2px solid var(--acc)">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <div class="av">${p.name.charAt(0).toUpperCase()}</div>
+        <span style="font-size:11px;color:var(--muted)">${esc(p.name)}</span>
+      </div>
+      <h3 style="font-size:14px;margin-bottom:8px;line-height:1.35">"${esc(p.title)}"</h3>
+      <p style="font-size:12px;color:#999;line-height:1.55;margin-bottom:8px">${esc(p.desc)}</p>
+      ${p.lesson?`<p style="font-size:11px;color:var(--hint);margin-bottom:3px;font-weight:600">Aprendizaje</p><p style="font-size:12px;color:#ccc;line-height:1.5;margin-bottom:8px">${esc(p.lesson)}</p>`:''}
+      ${p.phrase?`<div style="border-top:1px solid var(--border);padding-top:8px"><p style="font-size:12px;font-style:italic;color:var(--acc)">"${esc(p.phrase)}"</p></div>`:''}
+    </div>`).join('')}
+  </div>`;
+}
+
+// ── Phase 4: Votación ──────────────────────────────────────────────────────
+function rVotacion(el){
+  el.innerHTML=`<div class="fi" style="max-width:720px">
+    <span class="tag" style="display:inline-block;margin-bottom:16px">Fase 5 de 6</span>
+    <h2 style="font-size:26px;margin-bottom:10px">Votación 🏆</h2>
+    <div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:20px">
+      ${VE.map(v=>`<span style="font-size:12px;background:var(--surf2);border:1px solid var(--bord2);border-radius:20px;padding:4px 10px;color:var(--muted)">${v.e} ${v.l}</span>`).join('')}
+    </div>
+    <div id="votes-grid"></div>
+  </div>`;
+  renderVoting();
+}
+
+async function renderVoting(){
+  const el=document.getElementById('votes-grid');
+  if(!el)return;
+  const[ps,vs]=await Promise.all([
+    db.ref('museo/pieces').once('value'),
+    db.ref('museo/votes').once('value')
+  ]);
+  const pcs=ps.val()?Object.values(ps.val()):[];
+  const votes=vs.val()||{};
+  if(!pcs.length){el.innerHTML='<p style="color:var(--hint)">No hay piezas para votar…</p>';return;}
+  el.innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px">
+    ${pcs.map(p=>{
+      const pv=votes[ekey(p.name)]||{};
+      const mv=pv[ekey(usr.name)];
+      return`<div class="card" style="${mv?'border-color:rgba(255,88,0,.25)':''}">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <div class="av">${p.name.charAt(0).toUpperCase()}</div>
+          <span style="font-size:11px;color:var(--muted)">${esc(p.name)}</span>
+        </div>
+        <h3 style="font-size:13px;margin-bottom:12px;line-height:1.3">"${esc(p.title)}"</h3>
+        <div style="display:flex;gap:5px;flex-wrap:wrap">
+          ${VE.map(v=>{
+            const cnt=Object.values(pv).filter(x=>x===v.e).length;
+            const vd=mv===v.e;
+            return`<button onclick="castVote('${ekey(p.name)}','${v.e}')" title="${v.l}" style="background:${vd?'rgba(255,88,0,.18)':'rgba(255,255,255,.04)'};border:1px solid ${vd?'rgba(255,88,0,.45)':'rgba(255,255,255,.09)'};border-radius:20px;padding:4px 9px;cursor:pointer;font-size:14px;color:var(--text);transition:all .15s">${v.e}${cnt>0?`<span style="font-size:10px;color:var(--muted);margin-left:3px">${cnt}</span>`:''}</button>`;
+          }).join('')}
+        </div>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+async function castVote(pk,emoji){
+  const ref=db.ref(`museo/votes/${pk}/${ekey(usr.name)}`);
+  const s=await ref.once('value');
+  if(s.val()===emoji)await ref.remove();
+  else await ref.set(emoji);
+}
+
+// ── Phase 5: Cierre ────────────────────────────────────────────────────────
+function rCierre(el){
+  el.innerHTML=`<div class="fi" style="max-width:600px">
+    <span class="tag" style="display:inline-block;margin-bottom:16px">Fase 6 de 6</span>
+    <h2 style="font-size:26px;margin-bottom:14px">Cierre ✨</h2>
+    <div class="card" style="border-left:3px solid var(--acc);margin-bottom:22px">
+      <p style="font-size:13px;color:#bbb;line-height:1.75;font-style:italic">Lo bonito de este museo es que nos recuerda que todos somos muchas versiones de nosotros mismos. Algunas fueron intensas, otras ingenuas, otras cansadas, otras valientes. Pero todas estaban intentando resolver la vida con las herramientas que tenían en ese momento.</p>
+    </div>
+    <p style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:12px">¿Qué le dirías hoy a una versión pasada de ti?</p>
+    <div style="display:flex;gap:8px;margin-bottom:22px">
+      <input id="ref-in" type="text" placeholder="En una frase…" style="flex:1">
+      <button onclick="subRef()" class="bp" style="white-space:nowrap">Enviar</button>
+    </div>
+    <div id="refs-grid"></div>
+  </div>`;
+  renderRefs();
+  db.ref('museo/refs/'+ekey(usr.name)).once('value').then(s=>{
+    const m=s.val(), inp=document.getElementById('ref-in');
+    if(m&&inp){inp.disabled=true;inp.value=m.text;}
+  });
+}
+
+async function renderRefs(){
+  const el=document.getElementById('refs-grid');
+  if(!el)return;
+  const s=await db.ref('museo/refs').once('value');
+  const refs=s.val()?Object.values(s.val()):[];
+  if(!refs.length){el.innerHTML='<p style="color:var(--hint)">Esperando reflexiones…</p>';return;}
+  el.innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px">
+    ${refs.sort((a,b)=>a.ts-b.ts).map(r=>`
+      <div class="card" style="text-align:center;padding:16px">
+        <div class="av" style="width:32px;height:32px;font-size:12px;margin:0 auto 8px">${r.name.charAt(0).toUpperCase()}</div>
+        <p style="font-size:10px;color:var(--muted);margin-bottom:6px;font-weight:700">${esc(r.name)}</p>
+        <p style="font-style:italic;font-size:13px;color:var(--text);line-height:1.55">"${esc(r.text)}"</p>
+      </div>`).join('')}
+  </div>`;
+}
+
+async function subRef(){
+  const t=document.getElementById('ref-in')?.value.trim();
+  if(!t)return;
+  await db.ref('museo/refs/'+ekey(usr.name)).set({name:usr.name,text:t,ts:Date.now()});
+  const inp=document.getElementById('ref-in');
+  if(inp)inp.disabled=true;
+}
+
+// ── Facilitator controls ───────────────────────────────────────────────────
+async function nextPhase(){
+  if(usr.role!=='facilitador')return;
+  const s=await db.ref('museo/session').once('value');
+  const cur=s.val()||{phase:0};
+  const np=Math.min(cur.phase+1,PH.length-1);
+  await db.ref('museo/session').set({phase:np,phaseStartTime:Date.now()});
+}
+
+async function resetSession(){
+  if(usr.role!=='facilitador')return;
+  if(!confirm('¿Reiniciar toda la sesión? Se borrarán todas las piezas y respuestas.'))return;
+  _edit=false;
+  await Promise.all([
+    db.ref('museo/session').set({phase:0,phaseStartTime:Date.now()}),
+    db.ref('museo/ice').remove(),
+    db.ref('museo/pieces').remove(),
+    db.ref('museo/votes').remove(),
+    db.ref('museo/refs').remove()
+  ]);
+}
+
+// ── Sidebar ────────────────────────────────────────────────────────────────
+function renderUsers(users){
+  const el=document.getElementById('s-users');
+  if(!el)return;
+  el.innerHTML=!users.length?'<p style="font-size:11px;color:var(--hint)">Nadie más conectado</p>':
+    users.map(u=>`<div style="display:flex;align-items:center;gap:7px;margin-bottom:7px">
+      <div style="width:6px;height:6px;border-radius:50%;background:#22C55E;flex-shrink:0"></div>
+      <span style="font-size:12px;color:#ccc">${esc(u.name)}</span>
+      ${u.role==='facilitador'?'<span style="font-size:9px;color:var(--acc);background:var(--acc-dim);border-radius:4px;padding:1px 5px">fac</span>':''}
+    </div>`).join('');
+}
+
+async function sidebarFeed(){
+  const el=document.getElementById('s-feed');
+  if(!el)return;
+  const feed=[];
+  const[ir,pr,rr]=await Promise.all([
+    db.ref('museo/ice').once('value'),
+    db.ref('museo/pieces').once('value'),
+    db.ref('museo/refs').once('value')
+  ]);
+  if(ir.val())Object.values(ir.val()).forEach(i=>feed.push({ts:i.ts,t:`${esc(i.name)} escribió su icebreaker`}));
+  if(pr.val())Object.values(pr.val()).forEach(p=>feed.push({ts:p.ts,t:`${esc(p.name)} creó "${esc(p.title)}"`}));
+  if(rr.val())Object.values(rr.val()).forEach(r=>feed.push({ts:r.ts,t:`${esc(r.name)} dejó su reflexión`}));
+  feed.sort((a,b)=>b.ts-a.ts);
+  el.innerHTML=!feed.length?'<p style="font-size:11px;color:var(--hint)">Sin actividad aún</p>':
+    feed.slice(0,8).map(f=>`<div style="margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border)">
+      <p style="font-size:11px;color:#999;line-height:1.4">${f.t}</p>
+      <p style="font-size:10px;color:var(--hint);margin-top:2px">${ago(f.ts)}</p>
+    </div>`).join('');
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────
+selRole('participante');
+const saved=localStorage.getItem('museo_cfg');
+if(saved){
+  try{
+    firebase.initializeApp(JSON.parse(saved));
+    db=firebase.database();
+    showScreen('onb');
+  }catch(e){showScreen('setup');}
+}else{
+  showScreen('setup');
+}
+</script>
+</body>
+</html>
