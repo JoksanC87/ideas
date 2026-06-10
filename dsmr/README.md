@@ -1,185 +1,176 @@
 # Design System Maturity Radar (DSMR)
 
-A production-quality multi-tenant SaaS platform for evaluating the maturity of Design Systems in enterprise companies.
+Plataforma multi-tenant para evaluar la madurez de Design Systems en empresas enterprise. Diagnóstico, benchmarking, seguimiento continuo y generación de reportes.
 
-## Tech Stack
+## Stack
 
-- **Framework**: Next.js 16 (App Router)
-- **Database**: PostgreSQL via Prisma ORM 7
-- **Auth**: Supabase Auth (magic link)
-- **AI**: Anthropic Claude (evidence analysis + AI evaluation gate)
-- **Storage**: Google Cloud Storage (evidence file uploads)
-- **Validation**: Zod
-- **Charts**: Recharts
+| Capa | Tecnología |
+|------|-----------|
+| Frontend + API | Next.js 15 (App Router) + TypeScript |
+| Base de datos | PostgreSQL vía Prisma + RLS multi-tenant |
+| Auth | Supabase Auth (magic link / OAuth) |
+| Storage | Supabase Storage o Google Cloud Storage |
+| AI | Anthropic Claude (análisis de evidencia + gate) |
+| Charts | Recharts |
+| Validación | Zod |
+| UI | Tailwind CSS + componentes propios |
 
-## Architecture
+## Setup completo (Supabase + Vercel)
 
-- Multi-tenant via Row-Level Security (RLS) in PostgreSQL
-- 177 assessment questions across 10 maturity dimensions (A–J)
-- AI-assisted evaluation gate: AI evaluates before human closes assessment
-- Evidence hub: URL, file upload, integration signals
-- Custom maturity model builder (clone/edit dimensions and questions)
-
-## Setup
-
-### 1. Prerequisites
-
-- Node.js 20+
-- PostgreSQL (or Supabase project)
-- Supabase project for auth
-- (Optional) Anthropic API key for AI features
-- (Optional) Google Cloud Storage bucket for file uploads
-
-### 2. Install dependencies
+### 1. Clonar el repo
 
 ```bash
+git clone https://github.com/joksanc87/ideas
+cd ideas/dsmr
 npm install
 ```
 
-### 3. Configure environment
+### 2. Crear proyecto en Supabase
+
+1. [supabase.com](https://supabase.com) → New project → anota la contraseña de DB
+2. Espera ~2 minutos a que el proyecto esté listo
+
+### 3. Obtener credenciales de Supabase
+
+| Variable | Dónde encontrarla en Supabase |
+|----------|-------------------------------|
+| `DATABASE_URL` | Settings → Database → **Connection pooling** → Transaction mode (puerto 6543) |
+| `DIRECT_URL` | Settings → Database → **Direct connection** URI (puerto 5432) |
+| `NEXT_PUBLIC_SUPABASE_URL` | Settings → API → Project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Settings → API → anon public key |
+
+### 4. Configurar variables de entorno
 
 ```bash
 cp .env.example .env.local
+# Edita .env.local con tus credenciales de Supabase
 ```
 
-Edit `.env.local` with your values:
-
-```env
-DATABASE_URL="postgresql://postgres:[password]@db.[project-ref].supabase.co:5432/postgres?schema=public&sslmode=require"
-NEXT_PUBLIC_SUPABASE_URL="https://[project-ref].supabase.co"
-NEXT_PUBLIC_SUPABASE_ANON_KEY="[your-anon-key]"
-ANTHROPIC_API_KEY="sk-ant-..."
-AI_MODEL="claude-sonnet-4-6"
-GCS_BUCKET="dsmr-evidence"
-DEMO_EMAIL="admin@demo.com"
-```
-
-### 4. Generate Prisma client
+### 5. Correr migraciones y seed
 
 ```bash
+# Genera el cliente Prisma
 npx prisma generate
-```
 
-### 5. Run database migrations
+# Crea las tablas (usa DIRECT_URL)
+npx prisma migrate dev --name init
 
-```bash
-npx prisma migrate deploy
-```
-
-Or for development with auto-migration:
-
-```bash
+# Aplica RLS (política de aislamiento multi-tenant)
 npx prisma migrate dev
-```
 
-### 6. Seed the database
-
-```bash
+# Carga el modelo de madurez v1 (177 preguntas) + datos demo
 npx prisma db seed
 ```
 
-This creates:
-- A demo organization
-- The DSMR Maturity Model v1 with all 177 questions
-- Two demo companies (NeoBank Global, Banco Continental)
-- A demo admin user (set DEMO_EMAIL in .env.local)
+### 6. Configurar Supabase Auth
 
-### 7. Run the development server
+En el dashboard de Supabase:
+1. **Authentication → Providers → Email** → habilitar "Enable Email provider"
+2. **Authentication → URL Configuration**:
+   - Site URL: `http://localhost:3000` (dev) / `https://tu-dominio.vercel.app` (prod)
+   - Redirect URLs: agregar `http://localhost:3000/auth/callback` y `https://tu-dominio.vercel.app/auth/callback`
+3. **Authentication → Users** → "Invite user" con el mismo email que pusiste en `DEMO_EMAIL`
+
+### 7. Correr en desarrollo
 
 ```bash
 npm run dev
+# Abre http://localhost:3000
+# Te redirige a /login → ingresa el email del usuario demo
+# Supabase envía un magic link → haz clic → accedes al dashboard
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+---
 
-## Project Structure
+## Deploy en Vercel
+
+### 1. Importar el proyecto
+
+1. [vercel.com](https://vercel.com) → Add New Project → Import Git Repository
+2. Selecciona `joksanc87/ideas`
+3. **Root Directory**: cambia a `dsmr`
+4. Framework: Next.js (auto-detectado)
+
+### 2. Variables de entorno en Vercel
+
+En la pantalla de configuración del proyecto (o Settings → Environment Variables), agrega:
 
 ```
-src/
-  app/
-    (app)/              # Protected app routes (requires auth)
-      layout.tsx        # App shell with nav + OrgSwitcher
-      page.tsx          # Main dashboard (redirects to DesignSystemMaturityRadar)
-      builder/          # Maturity model builder
-    api/                # API routes
-      assessments/      # CRUD + responses + AI evaluate + close
-      companies/        # Company management
-      evidence/         # Evidence hub (CRUD + signed upload URLs)
-      me/               # Current user info
-      models/           # Maturity model CRUD + questions
-      overview/         # Dashboard overview data
-      session/org/      # Active org switching
-    auth/callback/      # Supabase auth callback
-    login/              # Magic link login page
-  components/
-    DesignSystemMaturityRadar.tsx  # Main dashboard component
-    EvidenceHub.tsx                # Evidence management UI
-    AiGatePanel.tsx                # AI evaluation gate UI
-    ModelBuilder.tsx               # Custom model builder UI
-    OrgSwitcher.tsx                # Multi-org switcher
-    ui/index.tsx                   # Design tokens + shared components
-  data/
-    questions.ts        # 177 assessment questions (static bank)
-  lib/
-    ai-evaluator.ts     # Anthropic AI evidence analysis
-    answers.ts          # Answer type mapping (DB columns ↔ client)
-    auth.ts             # Auth context + RBAC permissions
-    data-layer.ts       # Frontend API client
-    db.ts               # Prisma client + RLS tenant helpers
-    evidence-signals.ts # Heuristic evidence signal analysis
-    model-loader.ts     # Load scoring model from DB
-    recommendations.ts  # Recommendation generation engine
-    recompute.ts        # Score recomputation
-    schemas.ts          # Zod validation schemas
-    scoring.ts          # Maturity scoring engine
-    storage.ts          # GCS storage helpers
-    supabase/
-      client.ts         # Browser Supabase client
-      middleware.ts     # Session refresh middleware helper
-      server.ts         # Server-side Supabase client
-  middleware.ts         # Next.js middleware (auth guard)
-prisma/
-  schema.prisma         # Database schema
-  seed.ts               # Database seed script
-  migrations/           # SQL migrations (RLS setup)
+DATABASE_URL          = [Pooler connection string de Supabase]
+DIRECT_URL            = [Direct connection string de Supabase]
+NEXT_PUBLIC_SUPABASE_URL    = https://[project].supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY = eyJ...
+ANTHROPIC_API_KEY     = sk-ant-... (opcional)
+AI_MODEL              = claude-sonnet-4-6
+DEMO_EMAIL            = admin@tudominio.com
 ```
 
-## Maturity Dimensions
+### 3. Configurar Redirect URL en Supabase para producción
 
-| Code | Dimension |
-|------|-----------|
-| A | Foundations & Governance |
-| B | Components & Patterns |
-| C | Documentation & Communication |
-| D | Tooling & Infrastructure |
-| E | Design Tokens |
-| F | Accessibility |
-| G | Testing & Quality |
-| H | Adoption & Metrics |
-| I | Contribution & Evolution |
-| J | AI & Automation |
+Authentication → URL Configuration → Redirect URLs → añadir:
+`https://tu-app.vercel.app/auth/callback`
 
-## Roles & Permissions
+### 4. Deploy
 
-| Role | Capabilities |
-|------|-------------|
-| SUPER_ADMIN | Full access |
-| ORG_ADMIN | All org operations including company/model management |
-| DS_LEAD | Assessment write, close, AI evaluate |
-| DESIGNOPS | Read + respond |
-| DESIGNER | Read + respond |
-| ENGINEER | Read + respond |
-| PM | Read only |
-| AUDITOR | Read + respond + validate evidence |
+Clic en **Deploy** — Vercel construye y despliega automáticamente.
+Cada push a la rama `main` dispara un re-deploy.
+
+---
+
+## Arquitectura multi-tenant
+
+```
+Organization
+  └── User (via Membership + Role)
+  └── Company
+        └── Assessment
+              ├── Responses (por pregunta del modelo)
+              ├── Evidence (archivos / URLs / integraciones)
+              ├── Scores (histórico por snapshot)
+              └── Recommendations (generadas por scoring engine + AI)
+```
+
+RLS aísla los datos por `orgId` en cada transacción usando `set_config('app.current_org', orgId)`.
+
+## Roles y permisos
+
+| Rol | Acceso |
+|-----|--------|
+| `SUPER_ADMIN` | Todo |
+| `ORG_ADMIN` | Gestión completa de su organización |
+| `DS_LEAD` | Responder, revisar, validar, cerrar assessments |
+| `DESIGNOPS` | Responder, ver métricas |
+| `DESIGNER` | Responder preguntas de diseño |
+| `ENGINEER` | Responder preguntas técnicas |
+| `PM` | Ver resultados ejecutivos |
+| `AUDITOR` | Responder, validar evidencia, generar reportes |
+
+## Dimensiones evaluadas (10)
+
+| Código | Dimensión | Peso |
+|--------|-----------|------|
+| A | Estrategia, visión y alineación con negocio | 8% |
+| B | Gobernanza, operating model y equipo core | 10% |
+| C | Adopción y uso real por equipos | 12% |
+| D | Foundations, tokenización y arquitectura semántica | 14% |
+| E | Componentes, patrones y arquitectura técnica | 12% |
+| F | Documentación, enablement y experiencia de uso | 10% |
+| G | Calidad, testing, accesibilidad y validación | 12% |
+| H | Métricas, observabilidad e impacto | 10% |
+| I | Integración con procesos, automatización y AI | 8% |
+| J | Mantenimiento, evolución y sostenibilidad | 4% |
 
 ## Scripts
 
 ```bash
-npm run dev          # Development server
-npm run build        # Production build
-npm run start        # Production server
+npm run dev          # Desarrollo local
+npm run build        # Build de producción
 npm run lint         # ESLint
-npm run db:seed      # Seed database
-npm run db:migrate   # Run migrations (dev)
-npm run db:generate  # Regenerate Prisma client
+npx tsc --noEmit     # Type check
+npx prisma studio    # GUI de la base de datos
+npx prisma db seed   # Recargar datos demo
 ```
+
+## Variables de entorno requeridas
+
+Ver `.env.example` para la lista completa con instrucciones de dónde obtener cada valor.
