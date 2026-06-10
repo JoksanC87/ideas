@@ -1,36 +1,185 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Design System Maturity Radar (DSMR)
 
-## Getting Started
+A production-quality multi-tenant SaaS platform for evaluating the maturity of Design Systems in enterprise companies.
 
-First, run the development server:
+## Tech Stack
+
+- **Framework**: Next.js 16 (App Router)
+- **Database**: PostgreSQL via Prisma ORM 7
+- **Auth**: Supabase Auth (magic link)
+- **AI**: Anthropic Claude (evidence analysis + AI evaluation gate)
+- **Storage**: Google Cloud Storage (evidence file uploads)
+- **Validation**: Zod
+- **Charts**: Recharts
+
+## Architecture
+
+- Multi-tenant via Row-Level Security (RLS) in PostgreSQL
+- 177 assessment questions across 10 maturity dimensions (A–J)
+- AI-assisted evaluation gate: AI evaluates before human closes assessment
+- Evidence hub: URL, file upload, integration signals
+- Custom maturity model builder (clone/edit dimensions and questions)
+
+## Setup
+
+### 1. Prerequisites
+
+- Node.js 20+
+- PostgreSQL (or Supabase project)
+- Supabase project for auth
+- (Optional) Anthropic API key for AI features
+- (Optional) Google Cloud Storage bucket for file uploads
+
+### 2. Install dependencies
+
+```bash
+npm install
+```
+
+### 3. Configure environment
+
+```bash
+cp .env.example .env.local
+```
+
+Edit `.env.local` with your values:
+
+```env
+DATABASE_URL="postgresql://postgres:[password]@db.[project-ref].supabase.co:5432/postgres?schema=public&sslmode=require"
+NEXT_PUBLIC_SUPABASE_URL="https://[project-ref].supabase.co"
+NEXT_PUBLIC_SUPABASE_ANON_KEY="[your-anon-key]"
+ANTHROPIC_API_KEY="sk-ant-..."
+AI_MODEL="claude-sonnet-4-6"
+GCS_BUCKET="dsmr-evidence"
+DEMO_EMAIL="admin@demo.com"
+```
+
+### 4. Generate Prisma client
+
+```bash
+npx prisma generate
+```
+
+### 5. Run database migrations
+
+```bash
+npx prisma migrate deploy
+```
+
+Or for development with auto-migration:
+
+```bash
+npx prisma migrate dev
+```
+
+### 6. Seed the database
+
+```bash
+npx prisma db seed
+```
+
+This creates:
+- A demo organization
+- The DSMR Maturity Model v1 with all 177 questions
+- Two demo companies (NeoBank Global, Banco Continental)
+- A demo admin user (set DEMO_EMAIL in .env.local)
+
+### 7. Run the development server
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Project Structure
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```
+src/
+  app/
+    (app)/              # Protected app routes (requires auth)
+      layout.tsx        # App shell with nav + OrgSwitcher
+      page.tsx          # Main dashboard (redirects to DesignSystemMaturityRadar)
+      builder/          # Maturity model builder
+    api/                # API routes
+      assessments/      # CRUD + responses + AI evaluate + close
+      companies/        # Company management
+      evidence/         # Evidence hub (CRUD + signed upload URLs)
+      me/               # Current user info
+      models/           # Maturity model CRUD + questions
+      overview/         # Dashboard overview data
+      session/org/      # Active org switching
+    auth/callback/      # Supabase auth callback
+    login/              # Magic link login page
+  components/
+    DesignSystemMaturityRadar.tsx  # Main dashboard component
+    EvidenceHub.tsx                # Evidence management UI
+    AiGatePanel.tsx                # AI evaluation gate UI
+    ModelBuilder.tsx               # Custom model builder UI
+    OrgSwitcher.tsx                # Multi-org switcher
+    ui/index.tsx                   # Design tokens + shared components
+  data/
+    questions.ts        # 177 assessment questions (static bank)
+  lib/
+    ai-evaluator.ts     # Anthropic AI evidence analysis
+    answers.ts          # Answer type mapping (DB columns ↔ client)
+    auth.ts             # Auth context + RBAC permissions
+    data-layer.ts       # Frontend API client
+    db.ts               # Prisma client + RLS tenant helpers
+    evidence-signals.ts # Heuristic evidence signal analysis
+    model-loader.ts     # Load scoring model from DB
+    recommendations.ts  # Recommendation generation engine
+    recompute.ts        # Score recomputation
+    schemas.ts          # Zod validation schemas
+    scoring.ts          # Maturity scoring engine
+    storage.ts          # GCS storage helpers
+    supabase/
+      client.ts         # Browser Supabase client
+      middleware.ts     # Session refresh middleware helper
+      server.ts         # Server-side Supabase client
+  middleware.ts         # Next.js middleware (auth guard)
+prisma/
+  schema.prisma         # Database schema
+  seed.ts               # Database seed script
+  migrations/           # SQL migrations (RLS setup)
+```
 
-## Learn More
+## Maturity Dimensions
 
-To learn more about Next.js, take a look at the following resources:
+| Code | Dimension |
+|------|-----------|
+| A | Foundations & Governance |
+| B | Components & Patterns |
+| C | Documentation & Communication |
+| D | Tooling & Infrastructure |
+| E | Design Tokens |
+| F | Accessibility |
+| G | Testing & Quality |
+| H | Adoption & Metrics |
+| I | Contribution & Evolution |
+| J | AI & Automation |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Roles & Permissions
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+| Role | Capabilities |
+|------|-------------|
+| SUPER_ADMIN | Full access |
+| ORG_ADMIN | All org operations including company/model management |
+| DS_LEAD | Assessment write, close, AI evaluate |
+| DESIGNOPS | Read + respond |
+| DESIGNER | Read + respond |
+| ENGINEER | Read + respond |
+| PM | Read only |
+| AUDITOR | Read + respond + validate evidence |
 
-## Deploy on Vercel
+## Scripts
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npm run dev          # Development server
+npm run build        # Production build
+npm run start        # Production server
+npm run lint         # ESLint
+npm run db:seed      # Seed database
+npm run db:migrate   # Run migrations (dev)
+npm run db:generate  # Regenerate Prisma client
+```
