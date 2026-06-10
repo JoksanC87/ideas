@@ -1,0 +1,406 @@
+// Design System Maturity Radar — Prisma schema (Fase 1)
+// Provider: PostgreSQL (Cloud SQL / Supabase). RLS se habilita en migración aparte.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/* ===================== Enums ===================== */
+enum Role {
+  SUPER_ADMIN
+  ORG_ADMIN
+  DS_LEAD
+  DESIGNOPS
+  DESIGNER
+  ENGINEER
+  PM
+  AUDITOR
+}
+
+enum ScopeType {
+  BUSINESS_UNIT
+  AREA
+  COUNTRY
+  CELL
+  TEAM
+  PLATFORM
+}
+
+enum QuestionType {
+  SCALE
+  BOOLEAN
+  SINGLE
+  MULTI
+  NUMBER
+  OPEN
+  URL
+  UPLOAD
+  INTEGRATION
+}
+
+enum AssessmentStatus {
+  DRAFT
+  IN_PROGRESS
+  IN_REVIEW
+  COMPLETED
+  ARCHIVED
+}
+
+enum ValidationStatus {
+  PENDING
+  VALIDATED
+  NEEDS_REVIEW
+  DISCREPANCY
+}
+
+enum EvidenceType {
+  FIGMA
+  TOKENS_FILE
+  STORYBOOK
+  REPO
+  DOCS
+  TRACKER
+  DASHBOARD
+  A11Y_REPORT
+  TEST_RESULT
+  SURVEY
+  OTHER
+}
+
+enum ScoreScope {
+  GLOBAL
+  DIMENSION
+  SUBDIMENSION
+}
+
+enum RecoBucket {
+  QUICK_WIN
+  TACTICAL
+  STRATEGIC
+}
+
+enum ReportType {
+  EXECUTIVE
+  TECHNICAL
+  COMPARATIVE
+  DIMENSION
+  HISTORICAL
+}
+
+/* ===================== Tenancy / identidad ===================== */
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  plan      String   @default("trial")
+  settings  Json     @default("{}")
+  createdAt DateTime @default(now())
+
+  memberships Membership[]
+  companies   Company[]
+  models      MaturityModel[]
+  benchmarks  Benchmark[]
+  auditLogs   AuditLog[]
+
+  @@map("organizations")
+}
+
+model User {
+  id          String       @id @default(cuid())
+  email       String       @unique
+  authId      String?      @unique // id del usuario en Supabase Auth
+  name        String?
+  createdAt   DateTime     @default(now())
+  memberships Membership[]
+  auditLogs   AuditLog[]
+
+  @@map("users")
+}
+
+// Un usuario puede pertenecer a varias organizaciones con un rol por organización.
+model Membership {
+  id     String @id @default(cuid())
+  userId String
+  orgId  String
+  role   Role   @default(DESIGNER)
+
+  user User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  org  Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, orgId])
+  @@index([orgId])
+  @@map("memberships")
+}
+
+/* ===================== Empresas y scopes ===================== */
+model Company {
+  id        String   @id @default(cuid())
+  orgId     String
+  name      String
+  industry  String?
+  country   String?
+  platforms String[] @default([])
+  teams     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  scopes      Scope[]
+  assessments Assessment[]
+
+  @@index([orgId])
+  @@map("companies")
+}
+
+model Scope {
+  id        String    @id @default(cuid())
+  companyId String
+  type      ScopeType
+  name      String
+  parentId  String?
+
+  company     Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  parent      Scope?       @relation("ScopeTree", fields: [parentId], references: [id])
+  children    Scope[]      @relation("ScopeTree")
+  assessments Assessment[]
+
+  @@index([companyId])
+  @@map("scopes")
+}
+
+/* ===================== Modelo de madurez (versionado) ===================== */
+model MaturityModel {
+  id         String   @id @default(cuid())
+  orgId      String?  // null = modelo global de la plataforma
+  name       String
+  version    Int      @default(1)
+  isActive   Boolean  @default(true)
+  levelBands Json     @default("[]") // [{min,max,label}]
+  createdAt  DateTime @default(now())
+
+  org         Organization? @relation(fields: [orgId], references: [id])
+  dimensions  Dimension[]
+  questions   Question[]
+  assessments Assessment[]
+
+  @@unique([orgId, name, version])
+  @@map("maturity_models")
+}
+
+model Dimension {
+  id      String  @id @default(cuid())
+  modelId String
+  code    String // "A".."J"
+  name    String
+  short   String
+  weight  Float // 0..1 (suman 1.0)
+  order   Int    @default(0)
+
+  model     MaturityModel @relation(fields: [modelId], references: [id], onDelete: Cascade)
+  questions Question[]
+
+  @@unique([modelId, code])
+  @@map("dimensions")
+}
+
+model Question {
+  id               String       @id @default(cuid())
+  modelId          String
+  dimensionId      String
+  code             String // "A1".."J14"
+  subdimension     String?
+  text             String
+  type             QuestionType
+  weight           Float        @default(1)
+  role             Role         @default(DESIGNER)
+  critical         Boolean      @default(false)
+  evidenceRequired Boolean      @default(false)
+  expectedLevel    Int          @default(3)
+  riskIfMissing    String?
+  recommendationKey String?
+  options          Json? // [{label,score}]
+  number           Json? // {unit,identity,inverse,bands}
+  condition        Json? // {questionCode,equals}
+  order            Int          @default(0)
+
+  model     MaturityModel @relation(fields: [modelId], references: [id], onDelete: Cascade)
+  dimension Dimension     @relation(fields: [dimensionId], references: [id], onDelete: Cascade)
+  responses Response[]
+
+  @@unique([modelId, code])
+  @@index([dimensionId])
+  @@map("questions")
+}
+
+/* ===================== Assessments y respuestas ===================== */
+model Assessment {
+  id          String           @id @default(cuid())
+  orgId       String
+  companyId   String
+  scopeId     String?
+  modelId     String
+  title       String
+  status      AssessmentStatus @default(DRAFT)
+  createdById String?
+  createdAt   DateTime         @default(now())
+  completedAt DateTime?
+
+  // Evaluación AI + gate humano (la evaluación no se cierra sin aprobación)
+  aiEvaluation    Json?
+  aiEvaluatedAt   DateTime?
+  gateApprovedById String?
+  gateApprovedAt   DateTime?
+
+  company         Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  scope           Scope?          @relation(fields: [scopeId], references: [id])
+  model           MaturityModel   @relation(fields: [modelId], references: [id])
+  responses       Response[]
+  evidence        Evidence[]
+  scores          Score[]
+  recommendations Recommendation[]
+  reports         Report[]
+
+  @@index([orgId])
+  @@index([companyId])
+  @@map("assessments")
+}
+
+model Response {
+  id               String           @id @default(cuid())
+  orgId            String
+  assessmentId     String
+  questionId       String
+  valueNumber      Float?           // scale(0-5), number
+  valueBool        Boolean?         // boolean
+  valueText        String?          // single, open, url
+  valueList        String[]         @default([]) // multi
+  normalizedScore  Float?           // 0–100 calculado por el engine
+  comment          String?
+  uncertain        Boolean          @default(false)
+  validationStatus ValidationStatus @default(PENDING)
+  answeredById     String?
+  updatedAt        DateTime         @updatedAt
+
+  assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  question   Question   @relation(fields: [questionId], references: [id])
+  evidence   Evidence[]
+
+  @@unique([assessmentId, questionId])
+  @@index([orgId])
+  @@map("responses")
+}
+
+model Evidence {
+  id           String       @id @default(cuid())
+  orgId        String
+  assessmentId String
+  responseId   String?
+  type         EvidenceType
+  url          String?
+  storageRef   String? // ruta en Cloud Storage
+  title        String?
+  aiSummary    String?
+  qualityScore Int? // 0–100 evaluado por AI
+  validated    Boolean      @default(false)
+  createdAt    DateTime     @default(now())
+
+  assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  response   Response?  @relation(fields: [responseId], references: [id])
+
+  @@index([orgId])
+  @@index([assessmentId])
+  @@map("evidence")
+}
+
+/* ===================== Resultados ===================== */
+model Score {
+  id           String     @id @default(cuid())
+  orgId        String
+  assessmentId String
+  scope        ScoreScope
+  dimensionCode String?   // null si scope = GLOBAL
+  subdimension String?
+  raw          Float
+  validated    Float
+  confidence   Int
+  computedAt   DateTime   @default(now())
+
+  assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@index([assessmentId, scope])
+  @@map("scores")
+}
+
+model Recommendation {
+  id           String     @id @default(cuid())
+  orgId        String
+  assessmentId String
+  dimensionCode String
+  bucket       RecoBucket
+  title        String
+  items        String[]   @default([])
+  impact       Float      @default(0)
+  effort       Float      @default(0)
+  createdAt    DateTime   @default(now())
+
+  assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@map("recommendations")
+}
+
+model Report {
+  id           String     @id @default(cuid())
+  orgId        String
+  assessmentId String
+  type         ReportType
+  version      Int        @default(1)
+  storageRef   String?
+  sharedToken  String?    @unique
+  expiresAt    DateTime?
+  createdAt    DateTime   @default(now())
+
+  assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@map("reports")
+}
+
+model Benchmark {
+  id            String   @id @default(cuid())
+  orgId         String?  // null = benchmark global de plataforma
+  industry      String?
+  region        String?
+  dimensionCode String? // null = global
+  p50           Float
+  p75           Float
+  p90           Float
+  sampleSize    Int      @default(0)
+  updatedAt     DateTime @updatedAt
+
+  org Organization? @relation(fields: [orgId], references: [id])
+
+  @@index([industry, dimensionCode])
+  @@map("benchmarks")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  orgId     String
+  actorId   String?
+  entity    String
+  entityId  String?
+  action    String
+  before    Json?
+  after     Json?
+  createdAt DateTime @default(now())
+
+  org   Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  actor User?        @relation(fields: [actorId], references: [id])
+
+  @@index([orgId, entity])
+  @@map("audit_logs")
+}
